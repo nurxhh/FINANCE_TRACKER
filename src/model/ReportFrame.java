@@ -263,7 +263,25 @@ public class ReportFrame extends JFrame {
                             description
                     );
 
-            refreshTable(filtered);
+        refreshTable(filtered);
+
+     ReportService.Summary summary =
+        reportService.calculateSummary(filtered);
+
+     incomeLabel.setText(String.format(
+        "Total Income: ₹%.2f",
+        summary.getTotalIncome() 
+    ));
+
+    expensesLabel.setText(String.format(
+        "Total Expenses: ₹%.2f",
+        summary.getTotalExpenses()
+    ));
+
+    balanceLabel.setText(String.format(
+        "Balance: ₹%.2f",
+        summary.getBalance()
+    ));
 
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(
