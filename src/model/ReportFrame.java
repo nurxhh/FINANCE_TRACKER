@@ -301,15 +301,18 @@ public class ReportFrame extends JFrame {
         return LocalDate.parse(value);
     }
 
-    private void resetFilters() {
-        typeFilter.setSelectedItem("All");
-        categoryField.setText("");
-        startDateField.setText("");
-        endDateField.setText("");
-        searchField.setText("");
+   
+private void resetFilters() {
+    typeFilter.setSelectedItem("All");
+    categoryField.setText("");
+    startDateField.setText("");
+    endDateField.setText("");
+    searchField.setText("");
 
-        refreshTable(transactions);
-    }
+    refreshTable(transactions);
+    refreshSummary();
+}
+
 
     private void showCategoryReport() {
         Map<String, Double> totals =

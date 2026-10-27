@@ -1,7 +1,4 @@
 package model;
-
-
-
 import model.Transactable;
 import model.Income;
 import model.Expense;
