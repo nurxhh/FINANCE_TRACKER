@@ -162,6 +162,9 @@ public class ReportFrame extends JFrame {
         JButton monthlyButton = new JButton("Monthly Report");
         JButton yearlyButton = new JButton("Yearly Report");
         JButton customButton = new JButton("Custom Date Range");
+        
+        JButton thresholdButton = new JButton("Set Expense Threshold");
+        thresholdButton.addActionListener(e -> showExpenseThreshold());
 
         categoryButton.addActionListener(e -> showCategoryReport());
         monthlyButton.addActionListener(e -> showMonthlyReport());
@@ -172,6 +175,7 @@ public class ReportFrame extends JFrame {
         buttons.add(monthlyButton);
         buttons.add(yearlyButton);
         buttons.add(customButton);
+        buttons.add(thresholdButton);
 
         JTabbedPane reportTabs = new JTabbedPane();
 
@@ -193,6 +197,84 @@ public class ReportFrame extends JFrame {
 
         return panel;
     }
+private void showExpenseThreshold() {
+    String monthInput = JOptionPane.showInputDialog(
+            this, "Enter month to check (YYYY-MM):"
+    );
+
+    if (monthInput == null || monthInput.trim().isEmpty()) {
+        return;
+    }
+
+    String input = JOptionPane.showInputDialog(
+            this, "Enter your monthly expense threshold (₹):"
+    );
+
+    if (input == null || input.trim().isEmpty()) {
+        return;
+    }
+
+    try {
+        YearMonth selectedMonth = YearMonth.parse(monthInput.trim());
+        double threshold = Double.parseDouble(input.trim());
+
+        if (!Double.isFinite(threshold) || threshold <= 0) {
+            JOptionPane.showMessageDialog(
+                    this, "Enter a valid amount greater than zero."
+            );
+            return;
+        }
+
+        ReportService.Summary summary =
+                reportService.monthlyReport(transactions, selectedMonth);
+
+        double monthlyExpenses = summary.getTotalExpenses();
+
+        if (monthlyExpenses > threshold) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    String.format(
+                            "Monthly expenses exceeded the threshold!\n\n"
+                            + "Month: %s\n"
+                            + "Monthly Expenses: ₹%.2f\n"
+                            + "Threshold: ₹%.2f\n"
+                            + "Excess Amount: ₹%.2f",
+                            selectedMonth,
+                            monthlyExpenses,
+                            threshold,
+                            monthlyExpenses - threshold
+                    ),
+                    "Expense Threshold Alert",
+                    JOptionPane.WARNING_MESSAGE
+            );
+        } else {
+            JOptionPane.showMessageDialog(
+                    this,
+                    String.format(
+                            "Expenses are within the threshold.\n\n"
+                            + "Month: %s\n"
+                            + "Monthly Expenses: ₹%.2f\n"
+                            + "Remaining Budget: ₹%.2f",
+                            selectedMonth,
+                            monthlyExpenses,
+                            threshold - monthlyExpenses
+                    ),
+                    "Expense Status",
+                    JOptionPane.INFORMATION_MESSAGE
+            );
+        }
+
+    } catch (NumberFormatException ex) {
+        JOptionPane.showMessageDialog(
+                this, "Enter a valid numeric threshold."
+        );
+    } catch (java.time.format.DateTimeParseException ex) {
+        JOptionPane.showMessageDialog(
+                this, "Enter a valid month in YYYY-MM format."
+        );
+    }
+}
+
 
     private void refreshSummary() {
         ReportService.Summary summary =
