@@ -13,6 +13,7 @@ public class FinancetrackerGUI extends JFrame {
 
     private static final Color WHITE = Color.WHITE;
     private static final Color BLACK = Color.BLACK;
+    private double monthlyThreshold = 0.0;
 
     public FinancetrackerGUI() {
         setTitle("Personal Finance Tracker");
@@ -51,16 +52,19 @@ public class FinancetrackerGUI extends JFrame {
         JButton expenseButton = createButton("Add Expense");
         JButton viewButton = createButton("View Transactions");
         JButton reportButton = createButton("Reports");
+        JButton thresholdButton = new JButton("Set Expense limit");
 
         buttons.add(incomeButton);
         buttons.add(expenseButton);
         buttons.add(viewButton);
         buttons.add(reportButton);
+        buttons.add(thresholdButton);
 
         incomeButton.addActionListener(e -> showTransactionForm("Income"));
         expenseButton.addActionListener(e -> showTransactionForm("Expense"));
         viewButton.addActionListener(e -> viewTransactions());
         reportButton.addActionListener(e -> openReports());
+        thresholdButton.addActionListener(e -> showExpenseThreshold());
 
         JLabel footer = new JLabel(
                 "Personal Finance Management",
@@ -87,87 +91,184 @@ public class FinancetrackerGUI extends JFrame {
     }
 
     private void showTransactionForm(String type) {
-        JDialog dialog = new JDialog(this, "Add " + type, true);
-        dialog.setSize(430, 350);
-        dialog.setLocationRelativeTo(this);
-        dialog.getContentPane().setBackground(WHITE);
+    JDialog dialog = new JDialog(this, "Add " + type, true);
+    dialog.setSize(400, 350);
+    dialog.setLocationRelativeTo(this);
+    dialog.setLayout(new BorderLayout(10, 10));
 
-        JPanel form = new JPanel(new GridBagLayout());
-        form.setBackground(WHITE);
-        form.setBorder(BorderFactory.createEmptyBorder(20, 25, 20, 25));
+    JPanel form = new JPanel(new GridLayout(5, 2, 10, 10));
+    form.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
 
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(9, 8, 9, 8);
-        gbc.fill = GridBagConstraints.HORIZONTAL;
+    JLabel amountLabel = new JLabel("Amount (₹):");
+    JTextField amountField = new JTextField();
 
-        JTextField amountField = new JTextField(15);
-        JTextField dateField = new JTextField(LocalDate.now().toString(), 15);
-        JTextField descriptionField = new JTextField(15);
+    JLabel dateLabel = new JLabel("Date (YYYY-MM-DD):");
+    JTextField dateField = new JTextField(LocalDate.now().toString());
 
-        String[] categories = type.equals("Income")
-                ? new String[]{"Salary", "Other"}
-                : new String[]{"Food", "Rent", "Travel", "Other"};
+    JLabel categoryLabel = new JLabel("Category:");
+    JComboBox<String> categoryBox;
 
-        JComboBox<String> categoryBox = new JComboBox<>(categories);
-        categoryBox.setBackground(WHITE);
-        categoryBox.setForeground(BLACK);
-
-        addFormRow(form, gbc, 0, "Amount:", amountField);
-        addFormRow(form, gbc, 1, "Date (YYYY-MM-DD):", dateField);
-        addFormRow(form, gbc, 2, "Category:", categoryBox);
-        addFormRow(form, gbc, 3, "Description:", descriptionField);
-
-        JButton saveButton = createButton("Save " + type);
-        gbc.gridx = 0;
-        gbc.gridy = 4;
-        gbc.gridwidth = 2;
-        form.add(saveButton, gbc);
-
-        saveButton.addActionListener(e -> {
-            Double amount = parseAmount(amountField.getText());
-
-            if (amount == null) {
-                showError(dialog, "Enter a valid amount greater than zero.");
-                return;
-            }
-
-            String date = dateField.getText().trim();
-            if (!isValidDate(date)) {
-                showError(dialog, "Enter the date as YYYY-MM-DD.");
-                return;
-            }
-
-            String category = (String) categoryBox.getSelectedItem();
-            String description = descriptionField.getText().trim();
-
-            String sql = "INSERT INTO " + type
-                    + " (amount, category, transaction_date, description)"
-                    + " VALUES (?, ?, ?, ?)";
-
-            try (Connection con = DBconnection.getConnection();
-                 PreparedStatement ps = con.prepareStatement(sql)) {
-
-                ps.setDouble(1, amount);
-                ps.setString(2, category);
-                ps.setString(3, date);
-                ps.setString(4, description);
-                ps.executeUpdate();
-
-                JOptionPane.showMessageDialog(
-                        dialog, type + " added successfully.");
-                dialog.dispose();
-
-            } catch (SQLException ex) {
-                showError(dialog, "Could not save transaction:\n"
-                        + ex.getMessage());
-                ex.printStackTrace();
-            }
-        });
-
-        dialog.add(form);
-        dialog.setVisible(true);
+    if (type.equals("Income")) {
+        categoryBox = new JComboBox<>(
+                new String[]{"Salary", "Other"}
+        );
+    } else {
+        categoryBox = new JComboBox<>(
+                new String[]{"Food", "Rent", "Travel", "Other"}
+        );
     }
 
+    JLabel descriptionLabel = new JLabel("Description:");
+    JTextField descriptionField = new JTextField();
+
+    form.add(amountLabel);
+    form.add(amountField);
+    form.add(dateLabel);
+    form.add(dateField);
+    form.add(categoryLabel);
+    form.add(categoryBox);
+    form.add(descriptionLabel);
+    form.add(descriptionField);
+
+    JButton saveButton = new JButton("Save");
+    JButton cancelButton = new JButton("Cancel");
+
+    form.add(saveButton);
+    form.add(cancelButton);
+
+    saveButton.addActionListener(e -> {
+        double amount;
+        String date = dateField.getText().trim();
+
+        try {
+            amount = parseAmount(amountField.getText().trim());
+
+            if (amount <= 0) {
+                showError(dialog, "Amount must be greater than zero.");
+                return;
+            }
+        } catch (NumberFormatException ex) {
+            showError(dialog, "Please enter a valid amount.");
+            return;
+        }
+
+        if (!isValidDate(date)) {
+            showError(dialog, "Please enter a valid date in YYYY-MM-DD format.");
+            return;
+        }
+
+        String category = (String) categoryBox.getSelectedItem();
+        String description = descriptionField.getText().trim();
+
+        
+        if (type.equals("Expense")) {
+            if (monthlyThreshold <= 0) {
+                JOptionPane.showMessageDialog(
+                        dialog,
+                        "Please set your monthly expense limit first.",
+                        "Expense Limit Not Set",
+                        JOptionPane.WARNING_MESSAGE
+                );
+                return;
+            }
+
+            try {
+                double existingExpenses = getMonthlyExpenses(date);
+                double projectedTotal = existingExpenses + amount;
+
+                if (projectedTotal > monthlyThreshold) {
+                    JOptionPane.showMessageDialog(
+                            dialog,
+                            String.format(
+                                    "Monthly expense limit exceeded!\n\n"
+                                    + "Month: %s\n"
+                                    + "Monthly limit: ₹%.2f\n"
+                                    + "Existing expenses: ₹%.2f\n"
+                                    + "New expense: ₹%.2f\n"
+                                    + "Projected total: ₹%.2f",
+                                    date.substring(0, 7),
+                                    monthlyThreshold,
+                                    existingExpenses,
+                                    amount,
+                                    projectedTotal
+                            ),
+                            "Expense Limit Exceeded",
+                            JOptionPane.WARNING_MESSAGE
+                    );
+                    return;
+                }
+            } catch (SQLException ex) {
+                showError(
+                        dialog,
+                        "Could not check monthly expenses:\n" + ex.getMessage()
+                );
+                return;
+            }
+        }
+
+        String sql = "INSERT INTO " + type
+                + " (amount, category, transaction_date, description)"
+                + " VALUES (?, ?, ?, ?)";
+
+        try (Connection con = DBconnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+
+            ps.setDouble(1, amount);
+            ps.setString(2, category);
+            ps.setString(3, date);
+            ps.setString(4, description);
+
+            ps.executeUpdate();
+
+            JOptionPane.showMessageDialog(
+                    dialog,
+                    type + " added successfully."
+            );
+
+            dialog.dispose();
+
+        } catch (SQLException ex) {
+            showError(dialog, "Database error:\n" + ex.getMessage());
+        }
+    });
+
+    cancelButton.addActionListener(e -> dialog.dispose());
+
+    dialog.add(form, BorderLayout.CENTER);
+    dialog.setVisible(true);
+}
+    private void showExpenseThreshold() {
+    String input = JOptionPane.showInputDialog(
+            this,
+            "Enter your monthly expense threshold (₹):"
+    );
+
+    if (input == null || input.trim().isEmpty()) {
+        return;
+    }
+
+    try {
+        double threshold = Double.parseDouble(input.trim());
+
+        if (!Double.isFinite(threshold) || threshold <= 0) {
+            showError(this, "Enter an amount greater than zero.");
+            return;
+        }
+
+        monthlyThreshold = threshold;
+
+        JOptionPane.showMessageDialog(
+                this,
+                String.format(
+                        "Monthly expense limit set to ₹%.2f",
+                        monthlyThreshold
+                )
+        );
+
+    } catch (NumberFormatException ex) {
+        showError(this, "Enter a valid numeric amount.");
+    }
+}
     private void addFormRow(JPanel panel, GridBagConstraints gbc,
                             int row, String label, JComponent field) {
         gbc.gridwidth = 1;
@@ -469,6 +570,27 @@ public class FinancetrackerGUI extends JFrame {
             ex.printStackTrace();
         }
     }
+    private double getMonthlyExpenses(String date) throws SQLException {
+    String month = date.substring(0, 7);
+
+    String sql = "SELECT COALESCE(SUM(amount), 0) AS total "
+            + "FROM Expense "
+            + "WHERE substr(transaction_date, 1, 7) = ?";
+
+    try (Connection con = DBconnection.getConnection();
+         PreparedStatement ps = con.prepareStatement(sql)) {
+
+        ps.setString(1, month);
+
+        try (ResultSet rs = ps.executeQuery()) {
+            if (rs.next()) {
+                return rs.getDouble("total");
+            }
+        }
+    }
+
+    return 0.0;
+}
 
     private Double parseAmount(String text) {
         try {
